@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador Shikigami V3</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link href="https://goldenagerpg.github.io/fichas.io/shikigamis.css" rel="stylesheet" type="text/css">
+
+    <style>
+        :root {
+            --bg-tool: #09090b;
+            --panel-tool: #18181b;
+            --border-tool: #27272a;
+            --accent-tool: #8257e5;
+            --text-tool: #e4e4e7;
+            --danger: #ef4444;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--bg-tool);
+            color: var(--text-tool);
+            font-family: 'Roboto', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .app-container { display: flex; height: 100%; }
+
+        /* EDITOR */
+        .editor-pane {
+            width: 450px; flex-shrink: 0;
+            background: var(--panel-tool);
+            border-right: 1px solid var(--border-tool);
+            overflow-y: auto; padding: 20px;
+            display: flex; flex-direction: column; gap: 20px;
+        }
+
+        .editor-header h2 { color: var(--accent-tool); font-size: 1.2rem; text-transform: uppercase; margin-bottom: 5px; }
+        .editor-header p { font-size: 0.8rem; color: #71717a; }
+
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 0.75rem; color: #a1a1aa; margin-bottom: 5px; font-weight: bold; text-transform: uppercase; }
+        
+        input, textarea, select {
+            width: 100%; background: #000; border: 1px solid var(--border-tool); color: #fff;
+            padding: 10px; border-radius: 4px; font-family: monospace; font-size: 0.9rem; transition: 0.2s;
+        }
+        
+        input:focus, textarea:focus { border-color: var(--accent-tool); outline: none; }
+        textarea { min-height: 80px; resize: vertical; }
+
+        .row { display: flex; gap: 10px; }
+        .col { flex: 1; }
+
+        /* BOTÕES */
+        .btn-group { display: flex; gap: 10px; margin-top: 20px; }
+        .btn {
+            flex: 1; padding: 12px; border: none; border-radius: 4px;
+            font-weight: bold; cursor: pointer; text-transform: uppercase; font-size: 0.8rem;
+            display: flex; align-items: center; justify-content: center; gap: 5px;
+        }
+        .btn-primary { background: var(--accent-tool); color: #fff; }
+        .btn-primary:hover { background: #9f75ff; }
+        .btn-danger { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
+        .btn-danger:hover { background: rgba(239, 68, 68, 0.1); }
+        .btn-import { background: #27272a; color: #fff; margin-top: 5px; width: 100%; }
+
+        /* PREVIEW */
+        .preview-pane {
+            flex: 1; background: #000;
+            background-image: radial-gradient(#1a1a1a 1px, transparent 1px);
+            background-size: 20px 20px;
+            display: flex; justify-content: center; align-items: flex-start;
+            padding: 40px; overflow-y: auto; position: relative;
+        }
+
+        #livePreview { width: 100%; max-width: 700px; transform-origin: top center; }
+
+        /* Área oculta para cópia (opacity 0 ao invés de display none) */
+        #hiddenCode { position: absolute; opacity: 0; pointer-events: none; z-index: -1; }
+
+        @media (max-width: 900px) {
+            body { height: auto; overflow: auto; }
+            .app-container { flex-direction: column; }
+            .editor-pane { width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border-tool); }
+            .preview-pane { width: 100%; min-height: 500px; padding: 10px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    
+    <div class="editor-pane">
+        <div class="editor-header">
+            <h2>Editor Shikigami</h2>
+            <p>Edite os campos abaixo. O preview atualiza automaticamente.</p>
+        </div>
+
+        <div class="form-group">
+            <button class="btn btn-import" onclick="toggleImport()"><i class="fa-solid fa-download"></i> Importar Código</button>
+            <div id="importArea" style="display:none; margin-top:10px;">
+                <textarea id="importInput" placeholder="Cole o código HTML aqui..." style="min-height:60px;"></textarea>
+                <button class="btn btn-primary" onclick="runImport()" style="margin-top:5px; width:100%;">Processar</button>
+            </div>
+        </div>
+
+        <form id="shikiForm" oninput="updatePreview()">
+            <div class="form-group">
+                <label>Link da Imagem (URL)</label>
+                <input type="text" id="skImg" placeholder="https://...">
+            </div>
+
+            <div class="form-group">
+                <label>Nome do Shikigami</label>
+                <input type="text" id="skName" placeholder="Nome">
+            </div>
+
+            <div class="row">
+                <div class="col form-group">
+                    <label>HP Máximo</label>
+                    <input type="text" id="skHp" placeholder="2500">
+                </div>
+                <div class="col form-group">
+                    <label>Dano Base</label>
+                    <input type="text" id="skDmg" placeholder="150">
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col form-group">
+                    <label>Força (1-20)</label>
+                    <input type="number" id="skStr" min="1" max="20" placeholder="0">
+                </div>
+                <div class="col form-group">
+                    <label>Destreza (1-20)</label>
+                    <input type="number" id="skDex" min="1" max="20" placeholder="0">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Conceito & Aparência</label>
+                <textarea id="skDesc" placeholder="Descrição visual..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Interação com Técnica</label>
+                <textarea id="skInter" placeholder="Como funciona com sua técnica..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Nome da Habilidade</label>
+                <input type="text" id="skSkillTitle" placeholder="Habilidade Especial">
+            </div>
+
+            <div class="form-group">
+                <label>Descrição da Habilidade</label>
+                <textarea id="skSkillDesc" placeholder="Efeito da habilidade..."></textarea>
+            </div>
+
+            <div class="row">
+                <div class="col form-group">
+                    <label>Raio de Ação</label>
+                    <input type="text" id="skRange" placeholder="100m">
+                </div>
+                <div class="col form-group">
+                    <label>Cooldown Morte</label>
+                    <input type="date" id="skDate">
+                </div>
+            </div>
+        </form>
+
+        <div class="btn-group">
+            <button class="btn btn-primary" onclick="copyCode()"><i class="fa-solid fa-copy"></i> Copiar Código</button>
+            <button class="btn btn-danger" onclick="clearData()"><i class="fa-solid fa-trash"></i> Limpar</button>
+        </div>
+    </div>
+
+    <div class="preview-pane">
+        <div id="livePreview"></div>
+    </div>
+
+</div>
+
+<textarea id="hiddenCode"></textarea>
+
+<script>
+    // --- LÓGICA ---
+
+    function updatePreview() {
+        const img = document.getElementById('skImg').value || 'https://via.placeholder.com/150';
+        const name = document.getElementById('skName').value || 'NOME DO SHIKIGAMI';
+        const hp = document.getElementById('skHp').value || '0';
+        const dmg = document.getElementById('skDmg').value || '0';
+        const str = document.getElementById('skStr').value || '0';
+        const dex = document.getElementById('skDex').value || '0';
+        const desc = document.getElementById('skDesc').value || '[Descrição pendente]';
+        const inter = document.getElementById('skInter').value || '[Interação pendente]';
+        const skillTitle = document.getElementById('skSkillTitle').value || 'Habilidade';
+        const skillDesc = document.getElementById('skSkillDesc').value || '[Efeito pendente]';
+        
+        // Novos campos
+        const range = document.getElementById('skRange').value || '100m';
+        const rawDate = document.getElementById('skDate').value;
+        
+        let dateDisplay = "--";
+        if (rawDate) {
+            const parts = rawDate.split('-');
+            dateDisplay = `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+
+        const strWidth = Math.min((str / 20) * 100, 100);
+        const dexWidth = Math.min((dex / 20) * 100, 100);
+
+        // Template Atualizado (Labels limpos e Range editável)
+        const template = `
+<link href="https://goldenagerpg.github.io/fichas.io/shikigamis.css" rel="stylesheet" type="text/css">
+<div class="shikigami-hud">
+    <div class="sk-header">
+        <div class="sk-avatar-frame"><img src="${img}" class="sk-avatar-img"></div>
+        <div class="sk-header-info"><div class="sk-name">${name}</div><div class="sk-rank-badge">Shikigami</div></div>
+    </div>
+    <div class="sk-stats-grid">
+        <div class="sk-stat-cell"><span class="sk-label">Integridade</span><span class="sk-value">${hp} <small>HP</small></span></div>
+        <div class="sk-stat-cell" style="border-left: 1px solid var(--sk-border);"><span class="sk-label">Potência</span><span class="sk-value">${dmg} <small>DMG</small></span></div>
+        <div class="sk-attributes-container">
+            <div class="sk-attr-header"><span class="sk-attr-title">Atributos Físicos</span><span class="sk-attr-points">Distribuição: 15 Pontos Totais</span></div>
+            <div class="sk-attr-row"><div class="sk-attr-name">FORÇA</div><div class="sk-attr-bar-bg"><div class="sk-attr-bar-fill" style="width: ${strWidth}%;"></div></div><div class="sk-attr-input-area">${str}</div></div>
+            <div class="sk-attr-row"><div class="sk-attr-name">DESTREZA</div><div class="sk-attr-bar-bg"><div class="sk-attr-bar-fill" style="width: ${dexWidth}%;"></div></div><div class="sk-attr-input-area">${dex}</div></div>
+            <div class="sk-formula" style="text-align: right; margin-top: 5px;">*Escala de 1 a 20</div>
+        </div>
+    </div>
+    <div class="sk-body">
+        <div class="sk-section-header">Conceito & Aparência</div>
+        <div class="sk-text-block">${desc}</div>
+        <div class="sk-section-header">Interação com Técnica</div>
+        <div class="sk-text-block">${inter}</div>
+        <div class="sk-section-header">Ação Especial</div>
+        <div class="sk-skill-box"><div class="sk-skill-title">${skillTitle}</div><div class="sk-skill-desc">${skillDesc}</div></div>
+    </div>
+    <div class="sk-footer"><span>Raio de Ação: <strong>${range}</strong></span><span>Cooldown de Morte: <strong>${dateDisplay}</strong></span></div>
+</div>`;
+
+        document.getElementById('livePreview').innerHTML = template;
+        // Salva para cópia removendo espaços extras
+        document.getElementById('hiddenCode').value = template.replace(/\s+/g, ' ').trim();
+        saveLocal();
+    }
+
+    // --- IMPORTAR ---
+    function toggleImport() {
+        const area = document.getElementById('importArea');
+        area.style.display = area.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function runImport() {
+        const code = document.getElementById('importInput').value;
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(code, 'text/html');
+
+        try {
+            const getVal = (sel) => { 
+                const el = doc.querySelector(sel); 
+                return el ? el.innerText.trim() : ''; 
+            };
+            
+            document.getElementById('skImg').value = doc.querySelector('.sk-avatar-img').src;
+            document.getElementById('skName').value = getVal('.sk-name');
+            
+            // Limpa sufixos
+            document.getElementById('skHp').value = getVal('.sk-stat-cell:nth-child(1) .sk-value').replace(' HP','');
+            document.getElementById('skDmg').value = getVal('.sk-stat-cell:nth-child(2) .sk-value').replace(' DMG','');
+
+            const attrs = doc.querySelectorAll('.sk-attr-input-area');
+            if(attrs.length > 0) {
+                document.getElementById('skStr').value = attrs[0].innerText;
+                document.getElementById('skDex').value = attrs[1].innerText;
+            }
+
+            const blocks = doc.querySelectorAll('.sk-text-block');
+            if(blocks.length > 0) document.getElementById('skDesc').value = blocks[0].innerHTML;
+            if(blocks.length > 1) document.getElementById('skInter').value = blocks[1].innerHTML;
+
+            document.getElementById('skSkillTitle').value = getVal('.sk-skill-title');
+            document.getElementById('skSkillDesc').value = getVal('.sk-skill-desc');
+
+            // Importar Range
+            const rangeVal = doc.querySelectorAll('.sk-footer strong')[0].innerText;
+            document.getElementById('skRange').value = rangeVal;
+
+            // Importar Data
+            const footerDate = doc.querySelectorAll('.sk-footer strong')[1].innerText;
+            if(footerDate !== "--") {
+                const parts = footerDate.split('/');
+                document.getElementById('skDate').value = `${parts[2]}-${parts[1]}-${parts[0]}`;
+            } else {
+                document.getElementById('skDate').value = "";
+            }
+
+            updatePreview();
+            alert("Ficha importada!");
+            document.getElementById('importArea').style.display = 'none';
+        } catch (e) {
+            console.error(e);
+            alert("Erro ao ler código.");
+        }
+    }
+
+    // --- COPIAR (Correção do Bug) ---
+    function copyCode() {
+        updatePreview();
+        const codeText = document.getElementById('hiddenCode').value;
+        
+        // Tenta API Moderna
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(codeText).then(() => {
+                alert("Código copiado com sucesso!");
+            }).catch(err => {
+                // Fallback se falhar
+                fallbackCopy();
+            });
+        } else {
+            fallbackCopy();
+        }
+    }
+
+    function fallbackCopy() {
+        const copyText = document.getElementById("hiddenCode");
+        copyText.select();
+        copyText.setSelectionRange(0, 99999); /* Mobile */
+        document.execCommand("copy");
+        alert("Código copiado (Modo legado)!");
+    }
+
+    // --- SISTEMA ---
+    function saveLocal() {
+        const formData = {};
+        const inputs = document.querySelectorAll('#shikiForm input, #shikiForm textarea');
+        inputs.forEach(el => formData[el.id] = el.value);
+        localStorage.setItem('shikiV3_data', JSON.stringify(formData));
+    }
+
+    function loadLocal() {
+        const data = JSON.parse(localStorage.getItem('shikiV3_data'));
+        if (data) {
+            for (const key in data) {
+                if(document.getElementById(key)) document.getElementById(key).value = data[key];
+            }
+        }
+        updatePreview();
+    }
+
+    function clearData() {
+        if(confirm("Apagar tudo?")) {
+            localStorage.removeItem('shikiV3_data');
+            document.getElementById('shikiForm').reset();
+            updatePreview();
+        }
+    }
+
+    window.onload = loadLocal;
+</script>
+</body>
+</html>
