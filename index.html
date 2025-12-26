@@ -17,6 +17,8 @@
             --accent-tool: #8257e5;
             --text-tool: #e4e4e7;
             --danger: #ef4444;
+            --success: #10b981;
+            --warning: #f59e0b;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -57,18 +59,45 @@
         .row { display: flex; gap: 10px; }
         .col { flex: 1; }
 
+        /* STEPPER */
+        .stepper {
+            display: flex; align-items: center;
+            border: 1px solid var(--border-tool);
+            border-radius: 4px; background: #000; overflow: hidden;
+        }
+        .stepper-btn {
+            width: 40px; height: 40px; background: var(--panel-tool);
+            border: none; color: var(--accent-tool); font-size: 1.2rem;
+            cursor: pointer; transition: 0.2s;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .stepper-btn:hover { background: #27272a; color: #fff; }
+        .stepper-btn:active { background: var(--accent-tool); }
+        .stepper-input {
+            border: none; text-align: center; pointer-events: none;
+            font-weight: bold; font-size: 1.1rem; color: #fff; width: 100%;
+        }
+
+        /* POINTS DISPLAY */
+        .points-display {
+            font-size: 0.75rem; color: #a1a1aa; text-align: right; margin-top: 5px;
+        }
+        .points-val { color: var(--accent-tool); font-weight: bold; }
+
         /* BOTÕES */
         .btn-group { display: flex; gap: 10px; margin-top: 20px; }
         .btn {
             flex: 1; padding: 12px; border: none; border-radius: 4px;
             font-weight: bold; cursor: pointer; text-transform: uppercase; font-size: 0.8rem;
-            display: flex; align-items: center; justify-content: center; gap: 5px;
+            display: flex; align-items: center; justify-content: center; gap: 5px; transition: 0.2s;
         }
         .btn-primary { background: var(--accent-tool); color: #fff; }
-        .btn-primary:hover { background: #9f75ff; }
+        .btn-primary:hover { background: #9f75ff; box-shadow: 0 0 10px rgba(130, 87, 229, 0.4); }
         .btn-danger { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
         .btn-danger:hover { background: rgba(239, 68, 68, 0.1); }
         .btn-import { background: #27272a; color: #fff; margin-top: 5px; width: 100%; }
+        .btn-ghost { background: transparent; color: #888; border: 1px solid #333; }
+        .btn-ghost:hover { color: #fff; border-color: #666; }
 
         /* PREVIEW */
         .preview-pane {
@@ -80,9 +109,53 @@
         }
 
         #livePreview { width: 100%; max-width: 700px; transform-origin: top center; }
-
-        /* Área oculta para cópia (opacity 0 ao invés de display none) */
         #hiddenCode { position: absolute; opacity: 0; pointer-events: none; z-index: -1; }
+
+        /* --- MODAL --- */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(4px);
+            z-index: 9999; display: flex; justify-content: center; align-items: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+        }
+        .modal-overlay.active { opacity: 1; pointer-events: auto; }
+        .modal-box {
+            background: var(--panel-tool); border: 1px solid var(--border-tool);
+            width: 90%; max-width: 400px; border-radius: 8px; padding: 25px;
+            transform: scale(0.9); transition: transform 0.3s; box-shadow: 0 15px 40px rgba(0,0,0,0.5); text-align: center;
+        }
+        .modal-overlay.active .modal-box { transform: scale(1); }
+        .modal-icon { font-size: 3rem; margin-bottom: 15px; display: block; }
+        .icon-success { color: var(--success); }
+        .icon-error { color: var(--danger); }
+        .icon-warn { color: var(--warning); }
+        .modal-title { color: #fff; font-size: 1.2rem; margin-bottom: 10px; font-weight: bold; text-transform: uppercase; }
+        .modal-msg { color: var(--text-tool); font-size: 0.95rem; margin-bottom: 25px; line-height: 1.5; }
+        .modal-actions { display: flex; gap: 10px; justify-content: center; }
+
+        /* --- MINI TOAST (NOVO DESIGN) --- */
+        .toast {
+            position: fixed; /* Fixado para calcular coordenadas X/Y exatas */
+            background: #000;
+            border: 1px solid var(--danger);
+            color: var(--danger);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s, transform 0.2s;
+            z-index: 10000;
+            white-space: nowrap;
+        }
+        .toast.active {
+            opacity: 1;
+            /* Move para cima do botão */
+            transform: translate(-50%, -120%); 
+        }
 
         @media (max-width: 900px) {
             body { height: auto; overflow: auto; }
@@ -93,6 +166,17 @@
     </style>
 </head>
 <body>
+
+<div id="toast" class="toast">Limite Atingido!</div>
+
+<div id="customModal" class="modal-overlay">
+    <div class="modal-box">
+        <i id="mIcon" class="fa-solid fa-circle-check modal-icon"></i>
+        <h3 id="mTitle" class="modal-title">Título</h3>
+        <p id="mMsg" class="modal-msg">Mensagem.</p>
+        <div id="mActions" class="modal-actions"></div>
+    </div>
+</div>
 
 <div class="app-container">
     
@@ -132,14 +216,28 @@
                 </div>
             </div>
 
-            <div class="row">
-                <div class="col form-group">
-                    <label>Força (1-20)</label>
-                    <input type="number" id="skStr" min="1" max="20" placeholder="0">
+            <div class="form-group">
+                <div class="row" style="align-items: center; justify-content: space-between;">
+                    <label>Distribuição de Pontos</label>
+                    <div class="points-display">Gastos: <span id="pointsUsed" class="points-val">0</span> / 15</div>
                 </div>
-                <div class="col form-group">
-                    <label>Destreza (1-20)</label>
-                    <input type="number" id="skDex" min="1" max="20" placeholder="0">
+                <div class="row">
+                    <div class="col">
+                        <label>Força</label>
+                        <div class="stepper">
+                            <button type="button" class="stepper-btn" onclick="stepStat(this, 'skStr', -1)">-</button>
+                            <input type="number" id="skStr" value="1" min="1" max="20" class="stepper-input" readonly>
+                            <button type="button" class="stepper-btn" onclick="stepStat(this, 'skStr', 1)">+</button>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <label>Destreza</label>
+                        <div class="stepper">
+                            <button type="button" class="stepper-btn" onclick="stepStat(this, 'skDex', -1)">-</button>
+                            <input type="number" id="skDex" value="1" min="1" max="20" class="stepper-input" readonly>
+                            <button type="button" class="stepper-btn" onclick="stepStat(this, 'skDex', 1)">+</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -190,21 +288,116 @@
 <textarea id="hiddenCode"></textarea>
 
 <script>
-    // --- LÓGICA ---
+    // --- MINI TOAST LOGIC ---
+    const toast = document.getElementById('toast');
+    let toastTimeout;
 
+    function showToast(targetBtn, msg) {
+        // Pega a posição do botão clicado
+        const rect = targetBtn.getBoundingClientRect();
+        
+        // Posiciona o toast no meio do botão
+        toast.style.left = (rect.left + rect.width / 2) + 'px';
+        toast.style.top = rect.top + 'px';
+        
+        toast.innerText = msg;
+        toast.classList.add('active');
+        
+        clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => {
+            toast.classList.remove('active');
+        }, 1500); // Some rápido (1.5s)
+    }
+
+    // --- LÓGICA DE ATRIBUTOS ---
+    function stepStat(btn, id, delta) {
+        let str = parseInt(document.getElementById('skStr').value) || 1;
+        let dex = parseInt(document.getElementById('skDex').value) || 1;
+        
+        // Bloqueio de 15 pontos
+        if (delta > 0) {
+            if ((str + dex) >= 17) { // 1 base str + 1 base dex + 15 livres = 17
+                showToast(btn, "Max 15 Pts!");
+                return; 
+            }
+        }
+
+        const input = document.getElementById(id);
+        let val = parseInt(input.value) || 1;
+        val += delta;
+
+        if (val < 1) val = 1;
+        if (val > 20) val = 20;
+
+        input.value = val;
+        
+        updatePointsUI();
+        updatePreview();
+    }
+
+    function updatePointsUI() {
+        let str = parseInt(document.getElementById('skStr').value) || 1;
+        let dex = parseInt(document.getElementById('skDex').value) || 1;
+        let used = (str - 1) + (dex - 1);
+        
+        const display = document.getElementById('pointsUsed');
+        display.innerText = used;
+        
+        if(used >= 15) display.style.color = "#ef4444"; 
+        else display.style.color = "#8257e5"; 
+    }
+
+    // --- MODAL ---
+    const modal = document.getElementById('customModal');
+    const mIcon = document.getElementById('mIcon');
+    const mTitle = document.getElementById('mTitle');
+    const mMsg = document.getElementById('mMsg');
+    const mActions = document.getElementById('mActions');
+
+    function showModal({ type, title, text, onConfirm }) {
+        mIcon.className = 'modal-icon fa-solid';
+        if(type === 'success') mIcon.classList.add('fa-circle-check', 'icon-success');
+        else if (type === 'error') mIcon.classList.add('fa-circle-exclamation', 'icon-error');
+        else if (type === 'confirm') mIcon.classList.add('fa-triangle-exclamation', 'icon-warn');
+
+        mTitle.innerText = title;
+        mMsg.innerText = text;
+        mActions.innerHTML = '';
+
+        if (type === 'confirm') {
+            const btnCancel = document.createElement('button');
+            btnCancel.className = 'btn btn-ghost';
+            btnCancel.innerText = 'Cancelar';
+            btnCancel.onclick = closeModal;
+
+            const btnConfirm = document.createElement('button');
+            btnConfirm.className = 'btn btn-danger';
+            btnConfirm.innerText = 'Confirmar';
+            btnConfirm.onclick = () => { if(onConfirm) onConfirm(); closeModal(); };
+            mActions.append(btnCancel, btnConfirm);
+        } else {
+            const btnOk = document.createElement('button');
+            btnOk.className = 'btn btn-primary';
+            btnOk.innerText = 'Entendido';
+            btnOk.onclick = closeModal;
+            mActions.append(btnOk);
+        }
+        modal.classList.add('active');
+    }
+    function closeModal() { modal.classList.remove('active'); }
+
+    // --- CORE ---
     function updatePreview() {
         const img = document.getElementById('skImg').value || 'https://via.placeholder.com/150';
         const name = document.getElementById('skName').value || 'NOME DO SHIKIGAMI';
         const hp = document.getElementById('skHp').value || '0';
         const dmg = document.getElementById('skDmg').value || '0';
-        const str = document.getElementById('skStr').value || '0';
-        const dex = document.getElementById('skDex').value || '0';
+        const str = document.getElementById('skStr').value || '1';
+        const dex = document.getElementById('skDex').value || '1';
         const desc = document.getElementById('skDesc').value || '[Descrição pendente]';
         const inter = document.getElementById('skInter').value || '[Interação pendente]';
         const skillTitle = document.getElementById('skSkillTitle').value || 'Habilidade';
         const skillDesc = document.getElementById('skSkillDesc').value || '[Efeito pendente]';
-        
-        // Novos campos
         const range = document.getElementById('skRange').value || '100m';
         const rawDate = document.getElementById('skDate').value;
         
@@ -217,7 +410,6 @@
         const strWidth = Math.min((str / 20) * 100, 100);
         const dexWidth = Math.min((dex / 20) * 100, 100);
 
-        // Template Atualizado (Labels limpos e Range editável)
         const template = `
 <link href="https://goldenagerpg.github.io/fichas.io/shikigamis.css" rel="stylesheet" type="text/css">
 <div class="shikigami-hud">
@@ -247,12 +439,11 @@
 </div>`;
 
         document.getElementById('livePreview').innerHTML = template;
-        // Salva para cópia removendo espaços extras
         document.getElementById('hiddenCode').value = template.replace(/\s+/g, ' ').trim();
+        updatePointsUI();
         saveLocal();
     }
 
-    // --- IMPORTAR ---
     function toggleImport() {
         const area = document.getElementById('importArea');
         area.style.display = area.style.display === 'none' ? 'block' : 'none';
@@ -260,26 +451,22 @@
 
     function runImport() {
         const code = document.getElementById('importInput').value;
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(code, 'text/html');
+        if(!code) return showModal({type: 'error', title: 'Erro', text: 'Cole o código HTML.'});
 
         try {
-            const getVal = (sel) => { 
-                const el = doc.querySelector(sel); 
-                return el ? el.innerText.trim() : ''; 
-            };
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(code, 'text/html');
+            const getVal = (sel) => { const el = doc.querySelector(sel); return el ? el.innerText.trim() : ''; };
             
             document.getElementById('skImg').value = doc.querySelector('.sk-avatar-img').src;
             document.getElementById('skName').value = getVal('.sk-name');
-            
-            // Limpa sufixos
             document.getElementById('skHp').value = getVal('.sk-stat-cell:nth-child(1) .sk-value').replace(' HP','');
             document.getElementById('skDmg').value = getVal('.sk-stat-cell:nth-child(2) .sk-value').replace(' DMG','');
 
             const attrs = doc.querySelectorAll('.sk-attr-input-area');
             if(attrs.length > 0) {
-                document.getElementById('skStr').value = attrs[0].innerText;
-                document.getElementById('skDex').value = attrs[1].innerText;
+                document.getElementById('skStr').value = parseInt(attrs[0].innerText) || 1;
+                document.getElementById('skDex').value = parseInt(attrs[1].innerText) || 1;
             }
 
             const blocks = doc.querySelectorAll('.sk-text-block');
@@ -289,11 +476,9 @@
             document.getElementById('skSkillTitle').value = getVal('.sk-skill-title');
             document.getElementById('skSkillDesc').value = getVal('.sk-skill-desc');
 
-            // Importar Range
             const rangeVal = doc.querySelectorAll('.sk-footer strong')[0].innerText;
             document.getElementById('skRange').value = rangeVal;
 
-            // Importar Data
             const footerDate = doc.querySelectorAll('.sk-footer strong')[1].innerText;
             if(footerDate !== "--") {
                 const parts = footerDate.split('/');
@@ -303,27 +488,22 @@
             }
 
             updatePreview();
-            alert("Ficha importada!");
             document.getElementById('importArea').style.display = 'none';
+            showModal({type: 'success', title: 'Importado', text: 'Ficha carregada!'});
+
         } catch (e) {
             console.error(e);
-            alert("Erro ao ler código.");
+            showModal({type: 'error', title: 'Erro de Leitura', text: 'Verifique o código colado.'});
         }
     }
 
-    // --- COPIAR (Correção do Bug) ---
     function copyCode() {
         updatePreview();
         const codeText = document.getElementById('hiddenCode').value;
-        
-        // Tenta API Moderna
         if (navigator.clipboard) {
             navigator.clipboard.writeText(codeText).then(() => {
-                alert("Código copiado com sucesso!");
-            }).catch(err => {
-                // Fallback se falhar
-                fallbackCopy();
-            });
+                showModal({type: 'success', title: 'Sucesso', text: 'Código copiado!'});
+            }).catch(() => fallbackCopy());
         } else {
             fallbackCopy();
         }
@@ -332,35 +512,43 @@
     function fallbackCopy() {
         const copyText = document.getElementById("hiddenCode");
         copyText.select();
-        copyText.setSelectionRange(0, 99999); /* Mobile */
+        copyText.setSelectionRange(0, 99999);
         document.execCommand("copy");
-        alert("Código copiado (Modo legado)!");
+        showModal({type: 'success', title: 'Sucesso', text: 'Código copiado (Modo legado)!'});
     }
 
-    // --- SISTEMA ---
+    function clearData() {
+        showModal({
+            type: 'confirm',
+            title: 'Apagar Tudo?',
+            text: 'Isso limpará tudo.',
+            onConfirm: () => {
+                localStorage.removeItem('shikiFinal_data');
+                document.getElementById('shikiForm').reset();
+                document.getElementById('skStr').value = "1";
+                document.getElementById('skDex').value = "1";
+                updatePreview();
+            }
+        });
+    }
+
     function saveLocal() {
         const formData = {};
         const inputs = document.querySelectorAll('#shikiForm input, #shikiForm textarea');
         inputs.forEach(el => formData[el.id] = el.value);
-        localStorage.setItem('shikiV3_data', JSON.stringify(formData));
+        localStorage.setItem('shikiFinal_data', JSON.stringify(formData));
     }
 
     function loadLocal() {
-        const data = JSON.parse(localStorage.getItem('shikiV3_data'));
+        const data = JSON.parse(localStorage.getItem('shikiFinal_data'));
         if (data) {
             for (const key in data) {
                 if(document.getElementById(key)) document.getElementById(key).value = data[key];
             }
         }
+        if(!document.getElementById('skStr').value) document.getElementById('skStr').value = "1";
+        if(!document.getElementById('skDex').value) document.getElementById('skDex').value = "1";
         updatePreview();
-    }
-
-    function clearData() {
-        if(confirm("Apagar tudo?")) {
-            localStorage.removeItem('shikiV3_data');
-            document.getElementById('shikiForm').reset();
-            updatePreview();
-        }
     }
 
     window.onload = loadLocal;
